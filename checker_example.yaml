@@ -1,0 +1,34 @@
+account:
+  # Your recreation.gov login credentials
+  username: myuser@email.com
+  password: mypassword
+
+reservations:
+  - name: "Upper Pines (Yosemite)"
+    # Campground facility ID — found in the recreation.gov URL:
+    # https://www.recreation.gov/camping/campgrounds/232447
+    #                                                ^^^^^^
+    facility_id: "232447"
+    # Optional: specific campsite IDs to check. Omit to check all sites.
+    campsite_ids:
+      - "1234"
+      - "5678"
+    # Arrival date in YYYY-MM-DD format
+    arrival_date: "2026-07-11"
+    # Number of nights
+    length_of_stay: 5
+    # Number of campers
+    num_occupants: 4
+    # Number of vehicles
+    num_vehicles: 2
+    # Equipment type: tent, rv, trailer, fifth_wheel, popup,
+    #                 pickup_camper, caravan, none
+    equipment_type: tent
+
+  - name: "Wawona (Yosemite)"
+    facility_id: "232446"
+    arrival_date: "2026-07-16"
+    length_of_stay: 3
+    num_occupants: 4
+    num_vehicles: 2
+    equipment_type: tent

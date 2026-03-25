@@ -1,159 +1,113 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
+"""Campsite checker — find and book campsites on recreation.gov."""
 
-import os
-import ast
-import ConfigParser
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.wait import WebDriverWait
-from selenium.webdriver.firefox.firefox_profile import FirefoxProfile
+import argparse
+import sys
+import time
 
-config = ConfigParser.ConfigParser()
+from availability import check_availability
+from config import load_config
 
-config.read('checker.ini')
 
-# The idea is that we will loop through each reservation page
-# based on the data below.  When we reach one which is available,
-# we will enter reservation info and take the user to checkout -
-# at this point the reservation is held for 15 minutes and the user
-# can enter payment details.
+def main():
+    parser = argparse.ArgumentParser(
+        description="Check recreation.gov campsite availability and auto-book."
+    )
+    parser.add_argument(
+        "--poll", type=int, default=0, metavar="SECONDS",
+        help="Poll interval in seconds (0 = run once and exit)",
+    )
+    parser.add_argument(
+        "--max-retries", type=int, default=0, metavar="N",
+        help="Max poll attempts (0 = unlimited, only used with --poll)",
+    )
+    parser.add_argument(
+        "--headed", action="store_true",
+        help="Run browser in visible mode for debugging",
+    )
+    parser.add_argument(
+        "--config", type=str, default="checker.yaml",
+        help="Path to config file (default: checker.yaml)",
+    )
+    args = parser.parse_args()
 
-RETRIES = int(config.get("common", "retries"))
-USERNAME = config.get("common", "username")
-PASSWORD = config.get("common", "password")
-NUM_RESERVATIONS = int(config.get("common", "num_reservations"))
+    from pathlib import Path
+    cfg = load_config(Path(args.config))
 
-firefoxProfile = FirefoxProfile()
-firefoxProfile.set_preference('browser.migration.version', 9001)
-firefoxProfile.set_preference('permissions.default.image', 2)
-firefoxProfile.set_preference('dom.ipc.plugins.enabled.libflashplayer.so', 'false')
+    attempt = 0
+    while True:
+        attempt += 1
+        if args.poll:
+            print(f"--- Attempt {attempt} ---")
 
-def checksites():
-	site_ready = False
-	num_retries = 0
+        booked_any = False
+        for res in cfg.reservations:
+            label = res.name or f"facility {res.facility_id}"
+            print(f"Checking availability for {label}...")
 
-	# Loop through sites
-	for site in SITES:
+            available = check_availability(
+                facility_id=res.facility_id,
+                arrival_date=res.arrival_date,
+                length_of_stay=res.length_of_stay,
+                campsite_ids=res.campsite_ids or None,
+            )
 
-		url = url_request.format(**site)
-		driver.get(url)
+            if not available:
+                print(f"  No available sites for {label}.")
+                continue
 
-		# First check if this is reservable yet - refresh if it's not
-		while site_ready == False:
-			# avail1 is the first date box on the page - if there's an 'N' in it,
-			# then the site is not yet available for reservations
-			elem = WebDriverWait(driver, 3).until(EC.presence_of_element_located((By.ID, 'avail1')))
-			if elem.text == 'N':
-				if num_retries < RETRIES:
-					print('Not yet reservable, retrying...')
-					num_retries += 1
-					driver.refresh()
-				else:
-					print('Not yet reservable. Exceeded number of retries.')
-					return False
-			# sites are now reservable, exit while loop
-			else:
-				site_ready = True
+            print(f"  Found {len(available)} available site(s)!")
+            for site in available:
+                print(f"    - {site['site_name']} (ID: {site['campsite_id']})")
 
-		# check the border of the arrival date field - a red border indicates
-		# the selection is not available. if we find a site, return the value
-		try:
-			border_color = driver.find_element_by_id('arrivaldate').value_of_css_property('border-top-color')
-			if border_color != 'rgb(255, 72, 0)':
-				return site
-		except Exception as e:
-			print(e)
+            # Try to book the first available site
+            from booker import book_site
+            for site in available:
+                print(f"  Attempting to book {site['site_name']}...")
+                success = book_site(
+                    facility_id=res.facility_id,
+                    campsite_id=site["campsite_id"],
+                    site_name=site["site_name"],
+                    arrival_date=res.arrival_date,
+                    length_of_stay=res.length_of_stay,
+                    num_occupants=res.num_occupants,
+                    num_vehicles=res.num_vehicles,
+                    equipment_type=res.equipment_type,
+                    username=cfg.account.username,
+                    password=cfg.account.password,
+                    headed=args.headed,
+                )
+                if success:
+                    print(f"  Booking successful for {site['site_name']}!")
+                    booked_any = True
+                    break
+                else:
+                    print(f"  Booking failed for {site['site_name']}, trying next...")
 
-# Error checker
-def checkerrors():
-	site_ready = False
-	num_retries = 0
-	while site_ready == False:
-		error = None
-		try:
-			error = driver.find_element_by_css_selector('#msg1')
-		except:
-			pass
-		if error != None:
-			if num_retries < RETRIES:
-				print('Site error: ' + error.text)
-				num_retries += 1
-				driver.refresh()
-			else:
-				print('Site error. Exceeded number of retries.')
-				return False
-		else:
-			site_ready = True
-	return True
+            if booked_any:
+                break
 
-for i in range(NUM_RESERVATIONS):
+        if booked_any:
+            print("\nDone! Complete payment in the browser if needed.")
+            sys.exit(0)
 
-	count = str(i + 1)
+        # If not polling, exit
+        if not args.poll:
+            print("\nNo sites booked.")
+            sys.exit(1)
 
-	driver = webdriver.Firefox(firefoxProfile)
-	driver.maximize_window()
+        # Check retry limit
+        if args.max_retries and attempt >= args.max_retries:
+            print(f"\nMax retries ({args.max_retries}) reached. Exiting.")
+            sys.exit(1)
 
-	ARV_DATE = config.get("reservation_" + count, "arv_date")
-	LENGTH_OF_STAY = config.get("reservation_" + count, "length_of_stay")
-	NUM_OCCUPANTS = config.get("reservation_" + count, "num_occupants")
-	NUM_VEHICLES = config.get("reservation_" + count, "num_vehicles")
-	EQUIPMENT_TYPE = config.get("reservation_" + count, "equipment_type")
-	SITES = ast.literal_eval(config.get("reservation_" + count, "sites"))
+        print(f"\nRetrying in {args.poll} seconds...")
+        try:
+            time.sleep(args.poll)
+        except KeyboardInterrupt:
+            print("\nInterrupted.")
+            sys.exit(1)
 
-	print SITES
 
-	url_request = 'http://www.recreation.gov/campsiteDetails.do?siteId={site_id}&contractCode=NRSO&parkId={park_id}&arvdate=' + ARV_DATE + '&lengthOfStay=' + LENGTH_OF_STAY
-
-	# Check if sites are available yet - if not refresh
-
-	# Find an available site
-	selected_site = False
-	
-	selected_site = checksites()
-	# if we've got a selected_site, automate the booking process
-
-	if selected_site:
-		# Click book button
-		driver.find_element_by_id('btnbookdates').click()
-
-		# Check to see if we got an error, if so refresh
-		WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, '#contentArea')))
-		noerrors = checkerrors();
-
-		if (noerrors):
-			# Enter username
-			username_field = WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, '#emailGroup input')))
-			username_field.send_keys(USERNAME);
-
-			# Enter password
-			password_field = driver.find_element_by_css_selector('#passwrdGroup input')
-			password_field.send_keys(PASSWORD);
-
-			# Click login button
-			driver.find_element_by_name('submitForm').click()
-
-			# Check if Primary Equipment field is readonly, if not set a value
-			WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "equip")))
-			if driver.find_element_by_id('equip').is_enabled():
-				driver.find_element_by_css_selector("select#equip > option[value='" + EQUIPMENT_TYPE + "']").click()
-
-			# Set number of occupants
-			driver.find_element_by_id('numoccupants').send_keys(NUM_OCCUPANTS)
-
-			# Set number of vehicles
-			driver.find_element_by_id('numvehicles').send_keys(NUM_VEHICLES)
-
-			# Click "Yes, I have read and understood this important information"
-			driver.find_element_by_id('agreement').click()
-
-			# Click "Continue to Shopping Cart" button
-			driver.find_element_by_id('continueshop').click()
-
-			print "You have 15 minutes to complete this reservation in the browser window."
-			
-		else:
-			print('No available sites. (L2)')
-	else:
-		print('No available sites. (L1)')
-
+if __name__ == "__main__":
+    main()

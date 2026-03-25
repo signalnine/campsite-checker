@@ -1,3 +1,6 @@
 geckodriver.log
 checker.ini
 checker-*.ini
+checker.yaml
+screenshots/
+__pycache__/

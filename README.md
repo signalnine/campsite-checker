@@ -1,34 +1,79 @@
 ## campsite-checker
 
-This is a python script which attempts to automate the process of reserving sites on recreation.gov.  It is especially made for sought-after campsites which have limited booking windows.
+A Python script that checks recreation.gov for campsite availability and automatically books when a site opens up.
 
 ### Dependencies
-* OS X or *nix variant
-* Python
-* Selenium (current release)
-* geckodriver (current release)
-* Firefox (current release)
 
-* If you're unfamiliar with the above tools, and using OS X: You already have a version of Python preinstalled.
-* You can install Selenium by opening a Terminal window and entering the following command: `sudo easy_install selenium` or `pip install selenium`
-* On OS X you can install the geckodriver using [homebrew](http://brew.sh), like so: `brew install geckodriver`
+* Python 3.8+
+* pip
 
-### Running the script
+### Setup
 
-Copy `checker_example.ini` to `checker.ini` and edit all the fields as required. You must have a `[reservation_#]` section for each reservation that you are trying to make. See below for how to find site\_id and park\_id values from the recreation.gov website.
+```bash
+# Install Python dependencies
+pip install -r requirements.txt
 
-Once you've edited the configuration file, open up a Terminal window in the directory containing this script and enter the command `python ./checker.py` to run the script.
+# Install Playwright's Chromium browser
+playwright install chromium
+```
 
-Recommended use pattern is to begin the script shortly before reservations are due to open, with a low number of retries. Recreation.gov network usage is monitored and you risk account termination if you just leave this running all day.
+### Configuration
 
-If a site is found that matches your requirements, you will have 15 minutes to complete the purchase in the browser window.
+Copy `checker_example.yaml` to `checker.yaml` and edit all fields:
 
-*Note*: If you find, after playing with this script, that you have lots of Firefox windows open, you can kill them all on a Unix based platform with a command like `$ killall firefox-bin`.
+```bash
+cp checker_example.yaml checker.yaml
+```
 
-### Finding park\_id and site\_id
+You'll need:
+- Your **recreation.gov login** credentials
+- The **facility ID** of the campground (found in the URL: `recreation.gov/camping/campgrounds/<facility_id>`)
+- Optionally, specific **campsite IDs** to target
 
-Find the campsite you wish to book on recreation.gov - do not enter selected dates. Go to the 'Site List' page, and hover over the 'Enter Date' button by the site you are interested in.  In the lower left of your browser, you will see a URL like the following:
+### Usage
 
-`http://www.recreation.gov/camping/Wawona/r/campsiteDetails.do?contractCode=NRSO&siteId=204305&parkId=70924`
+```bash
+# Check once and attempt to book
+python3 checker.py
 
-The site ID and park ID are the numbers specified at the end of the URL.
+# Poll every 60 seconds
+python3 checker.py --poll 60
+
+# Poll with a retry limit
+python3 checker.py --poll 60 --max-retries 50
+
+# Run with visible browser for debugging
+python3 checker.py --headed
+
+# Use a different config file
+python3 checker.py --config my-config.yaml
+```
+
+### How it works
+
+1. **Availability check** — queries recreation.gov's API to find available campsites for your requested dates. No browser needed for this step.
+2. **Auto-book** — when a site is found, Playwright launches a browser, logs into your account, and walks through the reservation flow up to checkout.
+3. **Payment** — you complete payment manually (the script does not store payment info).
+
+### Finding facility and campsite IDs
+
+Visit the campground page on recreation.gov. The facility ID is in the URL:
+
+```
+https://www.recreation.gov/camping/campgrounds/232447
+                                                ^^^^^^ facility_id
+```
+
+To find specific campsite IDs, click on a campsite from the campground page. The campsite ID appears in the URL:
+
+```
+https://www.recreation.gov/camping/campsites/1234
+                                              ^^^^ campsite_id
+```
+
+### Exit codes
+
+| Code | Meaning |
+|------|---------|
+| 0    | Booking reached checkout |
+| 1    | No availability found / retries exhausted |
