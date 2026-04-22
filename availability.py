@@ -1,9 +1,18 @@
 """Check campsite availability via recreation.gov's frontend API."""
 
 from datetime import date, timedelta
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import requests
+
+
+class AvailabilityFetchError(Exception):
+    """Raised when one or more required month fetches fail.
+
+    Distinguishes API failure from a genuine "no sites available"
+    result so callers can retry instead of reporting a false negative.
+    """
+
 
 BASE_URL = "https://www.recreation.gov/api/camps/availability/campground"
 
@@ -39,9 +48,11 @@ def check_availability(
     all_sites: Dict[str, Dict[str, str]] = {}  # campsite_id -> {date_str: status}
     site_names: Dict[str, str] = {}
 
+    failed_months: List[date] = []
     for month_start in months:
         data = _fetch_month(facility_id, month_start)
         if data is None:
+            failed_months.append(month_start)
             continue
 
         campsites = data.get("campsites", {})
@@ -52,6 +63,12 @@ def check_availability(
             availabilities = site_info.get("availabilities", {})
             for date_str, status in availabilities.items():
                 all_sites[cid][date_str] = status
+
+    if failed_months:
+        pretty = ", ".join(m.strftime("%Y-%m") for m in failed_months)
+        raise AvailabilityFetchError(
+            f"Failed to fetch availability for facility {facility_id}: {pretty}"
+        )
 
     # Filter to requested campsite_ids if specified
     if campsite_ids:

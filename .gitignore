@@ -4,3 +4,5 @@ checker-*.ini
 checker.yaml
 screenshots/
 __pycache__/
+.dolt/
+*.db

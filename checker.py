@@ -5,7 +5,7 @@ import argparse
 import sys
 import time
 
-from availability import check_availability
+from availability import AvailabilityFetchError, check_availability
 from config import load_config
 
 
@@ -45,12 +45,16 @@ def main():
             label = res.name or f"facility {res.facility_id}"
             print(f"Checking availability for {label}...")
 
-            available = check_availability(
-                facility_id=res.facility_id,
-                arrival_date=res.arrival_date,
-                length_of_stay=res.length_of_stay,
-                campsite_ids=res.campsite_ids or None,
-            )
+            try:
+                available = check_availability(
+                    facility_id=res.facility_id,
+                    arrival_date=res.arrival_date,
+                    length_of_stay=res.length_of_stay,
+                    campsite_ids=res.campsite_ids or None,
+                )
+            except AvailabilityFetchError as e:
+                print(f"  Availability check failed for {label}: {e}")
+                continue
 
             if not available:
                 print(f"  No available sites for {label}.")
