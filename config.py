@@ -91,6 +91,24 @@ def load_config(path: Path = CONFIG_PATH) -> Config:
             _die(f"Reservation '{label}': equipment_type '{equip}' not valid. "
                  f"Options: {', '.join(sorted(VALID_EQUIPMENT))}")
 
+        try:
+            length_of_stay = int(r["length_of_stay"])
+            num_occupants = int(r["num_occupants"])
+            num_vehicles = int(r["num_vehicles"])
+        except (TypeError, ValueError):
+            _die(f"Reservation '{label}': length_of_stay, num_occupants, "
+                 f"and num_vehicles must be integers.")
+
+        if length_of_stay < 1:
+            _die(f"Reservation '{label}': length_of_stay must be >= 1, "
+                 f"got {length_of_stay}.")
+        if num_occupants < 1:
+            _die(f"Reservation '{label}': num_occupants must be >= 1, "
+                 f"got {num_occupants}.")
+        if num_vehicles < 0:
+            _die(f"Reservation '{label}': num_vehicles must be >= 0, "
+                 f"got {num_vehicles}.")
+
         campsite_ids = r.get("campsite_ids", [])
         if not isinstance(campsite_ids, list):
             campsite_ids = [str(campsite_ids)]
@@ -100,9 +118,9 @@ def load_config(path: Path = CONFIG_PATH) -> Config:
             name=r.get("name"),
             facility_id=str(r["facility_id"]),
             arrival_date=arv,
-            length_of_stay=int(r["length_of_stay"]),
-            num_occupants=int(r["num_occupants"]),
-            num_vehicles=int(r["num_vehicles"]),
+            length_of_stay=length_of_stay,
+            num_occupants=num_occupants,
+            num_vehicles=num_vehicles,
             equipment_type=equip,
             campsite_ids=campsite_ids,
         ))

@@ -37,6 +37,11 @@ def check_availability(
     Returns a list of dicts with keys: campsite_id, site_name, for each
     site that is fully available for the requested dates.
     """
+    if length_of_stay < 1:
+        raise ValueError(
+            f"length_of_stay must be >= 1, got {length_of_stay}"
+        )
+
     needed_dates = [
         arrival_date + timedelta(days=d) for d in range(length_of_stay)
     ]

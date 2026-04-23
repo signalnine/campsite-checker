@@ -93,6 +93,33 @@ def test_raises_when_all_months_fail(monkeypatch):
         )
 
 
+def test_rejects_zero_length_of_stay(monkeypatch):
+    """length_of_stay=0 must raise rather than silently match every site.
+
+    Regression: empty needed_dates made _is_available return True for every
+    campsite in the API response, triggering a random booking attempt.
+    """
+    monkeypatch.setattr(availability, "_fetch_month", lambda *_a, **_kw: {})
+
+    with pytest.raises(ValueError):
+        check_availability(
+            facility_id="232447",
+            arrival_date=date(2026, 7, 11),
+            length_of_stay=0,
+        )
+
+
+def test_rejects_negative_length_of_stay(monkeypatch):
+    monkeypatch.setattr(availability, "_fetch_month", lambda *_a, **_kw: {})
+
+    with pytest.raises(ValueError):
+        check_availability(
+            facility_id="232447",
+            arrival_date=date(2026, 7, 11),
+            length_of_stay=-3,
+        )
+
+
 def test_single_month_success_unchanged(monkeypatch):
     payload = {
         "campsites": {
