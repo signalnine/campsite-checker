@@ -130,6 +130,58 @@ def test_empty_campsite_ids_key_becomes_empty_list(tmp_path):
     assert cfg.reservations[0].campsite_ids == []
 
 
+def test_rejects_null_element_in_campsite_ids(tmp_path):
+    """Regression: a null element inside the campsite_ids list silently
+    became the literal string 'None' via str(None), so the booker would
+    quietly skip that priority slot and pick a less-preferred site.
+    Surface the typo instead of masking it."""
+    body = """
+        account:
+          username: u
+          password: p
+        reservations:
+          - name: test
+            facility_id: 232447
+            arrival_date: "2026-07-11"
+            length_of_stay: 3
+            num_occupants: 2
+            num_vehicles: 1
+            equipment_type: tent
+            campsite_ids:
+              - null
+              - "1234"
+    """
+    path = tmp_path / "checker.yaml"
+    path.write_text(dedent(body))
+    with pytest.raises(SystemExit):
+        load_config(path)
+
+
+def test_rejects_empty_string_element_in_campsite_ids(tmp_path):
+    """An empty / whitespace-only campsite id can never match a real API
+    entry -- same silent-misconfig class as null, reject it too."""
+    body = """
+        account:
+          username: u
+          password: p
+        reservations:
+          - name: test
+            facility_id: 232447
+            arrival_date: "2026-07-11"
+            length_of_stay: 3
+            num_occupants: 2
+            num_vehicles: 1
+            equipment_type: tent
+            campsite_ids:
+              - ""
+              - "1234"
+    """
+    path = tmp_path / "checker.yaml"
+    path.write_text(dedent(body))
+    with pytest.raises(SystemExit):
+        load_config(path)
+
+
 def test_scalar_campsite_id_still_wrapped_in_list(tmp_path):
     """Back-compat: a single scalar campsite_id is still wrapped into a
     one-element list so users can write 'campsite_ids: 1234' as shorthand."""

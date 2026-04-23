@@ -114,6 +114,13 @@ def load_config(path: Path = CONFIG_PATH) -> Config:
             campsite_ids = []
         elif not isinstance(campsite_ids, list):
             campsite_ids = [campsite_ids]
+        # Reject null / empty elements: str(None) == 'None' would silently
+        # become a bogus id that never matches a real campsite, demoting the
+        # user's actual preferences without any error.
+        for c in campsite_ids:
+            if c is None or (isinstance(c, str) and not c.strip()):
+                _die(f"Reservation '{label}': campsite_ids contains a "
+                     f"null or empty entry.")
         campsite_ids = [str(c) for c in campsite_ids]
 
         reservations.append(Reservation(
