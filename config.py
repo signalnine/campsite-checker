@@ -109,9 +109,11 @@ def load_config(path: Path = CONFIG_PATH) -> Config:
             _die(f"Reservation '{label}': num_vehicles must be >= 0, "
                  f"got {num_vehicles}.")
 
-        campsite_ids = r.get("campsite_ids", [])
-        if not isinstance(campsite_ids, list):
-            campsite_ids = [str(campsite_ids)]
+        campsite_ids = r.get("campsite_ids")
+        if campsite_ids is None:
+            campsite_ids = []
+        elif not isinstance(campsite_ids, list):
+            campsite_ids = [campsite_ids]
         campsite_ids = [str(c) for c in campsite_ids]
 
         reservations.append(Reservation(

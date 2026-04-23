@@ -81,3 +81,73 @@ def test_accepts_valid_config(tmp_path):
     assert cfg.reservations[0].length_of_stay == 3
     assert cfg.reservations[0].num_occupants == 2
     assert cfg.reservations[0].num_vehicles == 1
+
+
+def test_null_campsite_ids_becomes_empty_list(tmp_path):
+    """Regression: 'campsite_ids: null' (or an empty value) used to produce
+    ['None'] -- a literal string campsite id that can never match a real
+    site, silently misconfiguring the booker."""
+    body = """
+        account:
+          username: u
+          password: p
+        reservations:
+          - name: test
+            facility_id: 232447
+            arrival_date: "2026-07-11"
+            length_of_stay: 3
+            num_occupants: 2
+            num_vehicles: 1
+            equipment_type: tent
+            campsite_ids: null
+    """
+    path = tmp_path / "checker.yaml"
+    path.write_text(dedent(body))
+    cfg = load_config(path)
+    assert cfg.reservations[0].campsite_ids == []
+
+
+def test_empty_campsite_ids_key_becomes_empty_list(tmp_path):
+    """'campsite_ids:' with no value parses to None in YAML -- treat the
+    same as an omitted key, not as the string 'None'."""
+    body = """
+        account:
+          username: u
+          password: p
+        reservations:
+          - name: test
+            facility_id: 232447
+            arrival_date: "2026-07-11"
+            length_of_stay: 3
+            num_occupants: 2
+            num_vehicles: 1
+            equipment_type: tent
+            campsite_ids:
+    """
+    path = tmp_path / "checker.yaml"
+    path.write_text(dedent(body))
+    cfg = load_config(path)
+    assert cfg.reservations[0].campsite_ids == []
+
+
+def test_scalar_campsite_id_still_wrapped_in_list(tmp_path):
+    """Back-compat: a single scalar campsite_id is still wrapped into a
+    one-element list so users can write 'campsite_ids: 1234' as shorthand."""
+    body = """
+        account:
+          username: u
+          password: p
+        reservations:
+          - name: test
+            facility_id: 232447
+            arrival_date: "2026-07-11"
+            length_of_stay: 3
+            num_occupants: 2
+            num_vehicles: 1
+            equipment_type: tent
+            campsite_ids: 1234
+    """
+    path = tmp_path / "checker.yaml"
+    path.write_text(dedent(body))
+    cfg = load_config(path)
+    assert cfg.reservations[0].campsite_ids == ["1234"]
