@@ -207,16 +207,18 @@ def _accept_agreements(page: Page):
 
 
 def _proceed_to_checkout(page: Page):
-    """Click through to checkout."""
+    """Click through to checkout. Raises if no button is found so book_site
+    reports failure instead of claiming success on a page we never advanced from."""
     checkout_btn = page.locator(
         "button:has-text('Continue to Shopping Cart'), "
         "button:has-text('Proceed to Cart'), "
         "button:has-text('Continue'), "
         "button:has-text('Checkout')"
     )
-    if checkout_btn.count() > 0:
-        checkout_btn.first.click()
-        page.wait_for_load_state("networkidle", timeout=15000)
+    if checkout_btn.count() == 0:
+        raise RuntimeError("No checkout button found on booking page")
+    checkout_btn.first.click()
+    page.wait_for_load_state("networkidle", timeout=15000)
 
 
 def _screenshot(page: Page, label: str):
