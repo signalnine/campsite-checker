@@ -88,16 +88,31 @@ def run_single_attempt(cfg: Config, headed: bool) -> Outcome:
     return Outcome.NO_AVAILABILITY
 
 
-def main():
+def _non_negative_int(value: str) -> int:
+    """argparse type that rejects negatives so --poll/--max-retries cannot
+    produce a time.sleep() crash or a polling loop that exits on attempt 1
+    because `1 >= <negative>` is always true."""
+    try:
+        n = int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"expected integer, got {value!r}")
+    if n < 0:
+        raise argparse.ArgumentTypeError(
+            f"must be non-negative, got {n}"
+        )
+    return n
+
+
+def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="Check recreation.gov campsite availability and auto-book."
     )
     parser.add_argument(
-        "--poll", type=int, default=0, metavar="SECONDS",
+        "--poll", type=_non_negative_int, default=0, metavar="SECONDS",
         help="Poll interval in seconds (0 = run once and exit)",
     )
     parser.add_argument(
-        "--max-retries", type=int, default=0, metavar="N",
+        "--max-retries", type=_non_negative_int, default=0, metavar="N",
         help="Max poll attempts (0 = unlimited, only used with --poll)",
     )
     parser.add_argument(
@@ -108,7 +123,11 @@ def main():
         "--config", type=str, default="checker.yaml",
         help="Path to config file (default: checker.yaml)",
     )
-    args = parser.parse_args()
+    return parser
+
+
+def main():
+    args = _build_parser().parse_args()
 
     cfg = load_config(Path(args.config))
 

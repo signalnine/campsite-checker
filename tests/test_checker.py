@@ -177,3 +177,39 @@ def test_outcome_exit_codes():
     assert Outcome.BOOKED.value == 0
     assert Outcome.NO_AVAILABILITY.value == 1
     assert Outcome.BOOKING_FAILED.value == 2
+
+
+def test_cli_rejects_negative_poll(capsys):
+    """Regression: --poll -60 used to pass argparse, then time.sleep(-60)
+    crashed with 'sleep length must be non-negative' and a traceback."""
+    parser = checker._build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--poll", "-60"])
+    err = capsys.readouterr().err
+    assert "poll" in err.lower()
+
+
+def test_cli_rejects_negative_max_retries(capsys):
+    """Regression: --max-retries -5 used to pass argparse, then the polling
+    loop's 'attempt >= args.max_retries' check was always true on attempt 1
+    (1 >= -5), so the script exited after the first pass instead of retrying."""
+    parser = checker._build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["--max-retries", "-5"])
+    err = capsys.readouterr().err
+    assert "max-retries" in err.lower() or "max_retries" in err.lower()
+
+
+def test_cli_accepts_zero_poll_and_max_retries():
+    """Zero is the documented sentinel for 'disabled'/'unlimited' and must pass."""
+    parser = checker._build_parser()
+    args = parser.parse_args(["--poll", "0", "--max-retries", "0"])
+    assert args.poll == 0
+    assert args.max_retries == 0
+
+
+def test_cli_accepts_positive_poll_and_max_retries():
+    parser = checker._build_parser()
+    args = parser.parse_args(["--poll", "60", "--max-retries", "5"])
+    assert args.poll == 60
+    assert args.max_retries == 5
