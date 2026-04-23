@@ -45,3 +45,4 @@ User config goes in `checker.yaml` (gitignored). See `checker_example.yaml` for 
 
 - 0: Booking reached checkout
 - 1: No availability / retries exhausted
+- 2: Availability was found but every booking attempt failed

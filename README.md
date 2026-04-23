@@ -77,3 +77,4 @@ https://www.recreation.gov/camping/campsites/1234
 |------|---------|
 | 0    | Booking reached checkout |
 | 1    | No availability found / retries exhausted |
+| 2    | Availability was found but every booking attempt failed |
