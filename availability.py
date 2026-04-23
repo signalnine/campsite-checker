@@ -75,14 +75,16 @@ def check_availability(
             f"Failed to fetch availability for facility {facility_id}: {pretty}"
         )
 
-    # Filter to requested campsite_ids if specified
+    # Decide iteration order: user-specified campsite_ids imply a priority
+    # ranking, so the booker attempts the most-preferred available site first.
     if campsite_ids:
-        all_sites = {k: v for k, v in all_sites.items() if k in campsite_ids}
+        ordered_cids = [c for c in campsite_ids if c in all_sites]
+    else:
+        ordered_cids = list(all_sites.keys())
 
-    # Check which sites are fully available
     available = []
-    for cid, avails in all_sites.items():
-        if _is_available(avails, needed_dates):
+    for cid in ordered_cids:
+        if _is_available(all_sites[cid], needed_dates):
             available.append({
                 "campsite_id": cid,
                 "site_name": site_names.get(cid, cid),
